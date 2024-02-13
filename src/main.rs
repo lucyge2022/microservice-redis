@@ -11,14 +11,15 @@ extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
 
-#[macro_use]
-extern crate diesel;
+// #[macro_use]
+// extern crate diesel;
 
 #[macro_use]
 extern crate log;
 extern crate env_logger;
 extern crate redis;
 
+use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::error::Error;
 use std::env;
@@ -32,16 +33,12 @@ use hyper::header::{ContentLength, ContentType};
 use futures::{future, Stream};
 use futures::future::{Future, FutureResult};
 
-use diesel::pg::PgConnection;
-use diesel::prelude::*;
-
 use maud::html;
 use redis::{Commands, RedisError, RedisResult};
 
 mod models;
-mod schema;
 
-use models::{Message, NewMessage};
+use models::{NewMessage};
 
 const DEFAULT_DATABASE_URL: &str = "postgresql://postgres@localhost:5432";
 
@@ -78,6 +75,7 @@ fn write_to_redis(
 }
  */
 
+
 // fn write_to_db(
 //     new_message: NewMessage,
 //     db_connection: &PgConnection,
@@ -102,7 +100,6 @@ fn write_to_redis(
 fn process_new_message(
     new_message: NewMessage,
 ) -> FutureResult<i64, hyper::Error> {
-    use schema::messages;
     if new_message.message.len() > 0 {
         return futures::future::ok(1234);
     } else {
@@ -190,40 +187,40 @@ fn parse_query(query: &str) -> Result<TimeRange, String> {
 //     }
 // }
 
-fn render_page(messages: Vec<Message>) -> String {
-    (html! {
-        head {
-            title {"microservice"}
-            style {"body { font-family: monospace }"}
-        }
-        body {
-            ul {
-                @for message in &messages {
-                    li {
-                        (message.username) " (" (message.timestamp) "): " (message.message)
-                    }
-                }
-            }
-        }
-    }).into_string()
-}
+// fn render_page(messages: Vec<Message>) -> String {
+//     (html! {
+//         head {
+//             title {"microservice"}
+//             style {"body { font-family: monospace }"}
+//         }
+//         body {
+//             ul {
+//                 @for message in &messages {
+//                     li {
+//                         (message.username) " (" (message.timestamp) "): " (message.message)
+//                     }
+//                 }
+//             }
+//         }
+//     }).into_string()
+// }
 
-fn make_get_response(
-    messages: Option<Vec<Message>>,
-) -> FutureResult<hyper::Response, hyper::Error> {
-    let response = match messages {
-        Some(messages) => {
-            let body = render_page(messages);
-            Response::new()
-                .with_header(ContentLength(body.len() as u64))
-                .with_header(ContentType::html())
-                .with_body(body)
-        }
-        None => Response::new().with_status(StatusCode::InternalServerError),
-    };
-    debug!("{:?}", response);
-    futures::future::ok(response)
-}
+// fn make_get_response(
+//     messages: Option<Vec<Message>>,
+// ) -> FutureResult<hyper::Response, hyper::Error> {
+//     let response = match messages {
+//         Some(messages) => {
+//             let body = render_page(messages);
+//             Response::new()
+//                 .with_header(ContentLength(body.len() as u64))
+//                 .with_header(ContentType::html())
+//                 .with_body(body)
+//         }
+//         None => Response::new().with_status(StatusCode::InternalServerError),
+//     };
+//     debug!("{:?}", response);
+//     futures::future::ok(response)
+// }
 
 // fn connect_to_db() -> Option<PgConnection> {
 //     let database_url = env::var("DATABASE_URL").unwrap_or(String::from(DEFAULT_DATABASE_URL));
@@ -306,10 +303,20 @@ impl Microservice {
 
 fn main() {
     env_logger::init();
-    let address = "127.0.0.1:8080".parse().unwrap();
-    let server = hyper::server::Http::new()
-        .bind(&address, move || Ok(Microservice))
-        .unwrap();
-    info!("Running microservice at {}", address);
-    server.run().unwrap();
+    let address = "0.0.0.0:1234".parse().unwrap();
+    // let server = hyper::server::Http::new()
+    //     .bind(&address, move || Ok(Microservice))
+    //     .unwrap();
+    let result = hyper::server::Http::new()
+        .bind(&address, move || Ok(Microservice));
+    match result {
+        Ok(res) => {
+            let server = res.run().unwrap();
+            info!("Running microservice at {}", address);
+        },
+        Err(e) => {
+            println!("Error: {}", e);
+        }
+    }
+    // server.run().unwrap();
 }
